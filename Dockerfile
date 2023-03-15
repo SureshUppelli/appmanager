@@ -42,7 +42,7 @@ RUN unzip -uo /opt/cook/datomic/datomic-free-0.9.5561.56.zip
 
 # Copy the whole scheduler into the container
 COPY docker /opt/cook/docker
-COPY resources /opt/cook/resources
+COPY test-resources /opt/cook/resources
 COPY java /opt/cook/java
 COPY src /opt/cook/src
 
