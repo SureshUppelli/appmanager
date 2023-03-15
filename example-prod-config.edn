@@ -1,0 +1,42 @@
+{:port 12321
+ :hostname "cook.example.com"
+ :authorization {:http-basic true}
+ :database {:datomic-uri "datomic:free://example.com:4334/cook-jobs"}
+ :authorization-config {
+                        ;; What function should be used to perform user authorization?
+                        ;; See the docstring in cook.rest.authorization for details.
+                        :authorization-fn cook.rest.authorization/configfile-admins-auth
+
+
+                        ;; These users have admin privileges when using
+                        ;; configfile-admins-auth -- that is, they can view and modify other
+                        ;; users' jobs.
+                        :admins #{"admin" "other-admin"}}
+ :zookeeper {:connection "zk1.example.com:2181,zk2.example.com:2181,zk3.example.com:2181/cook"}
+ :scheduler {:offer-incubate-ms 15000
+             :mea-culpa-failure-limit 5
+             :task-constraints {:timeout-hours 24
+                                :timeout-interval-minutes 10
+                                :memory-gb 96
+                                :retry-limit 15
+                                :cpus 20}}
+ :executor {:command "./cook-executor"
+            :uri {:cache true
+                  :executable true
+                  :extract false
+                  :value "http://example.com:12321/resources/cook-executor"}}
+ :mesos {:master "zk://zk1.example.com:2181,zk2.example.com:2181,zk3.example.com:2181/cook"
+         :failover-timeout-ms 1209600000
+         :leader-path "/cook-scheduler"}
+ :unhandled-exceptions {:log-level :error
+                        :email {:to ["admin@example.com"]
+                                :from "cook@example.com"
+                                :subject "Unhandled exception in cook"}}
+ :metrics {:jmx true}
+ :nrepl {:enabled? true
+         :port 8888}
+ :log {:file "log/cook.log"
+       :levels {"datomic.db" :warn
+                "datomic.peer" :warn
+                "datomic.kv-cluster" :warn
+                :default :info}}}

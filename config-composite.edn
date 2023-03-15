@@ -1,0 +1,140 @@
+{:agent-query-cache {:ttl-ms 1000}
+ :authorization {;; Note that internally, Cook will select :http-basic if it's set to true,
+                 ;; and fall back to :one-user only if :http-basic is false.
+                 :http-basic #config/env-bool "COOK_HTTP_BASIC_AUTH"
+                 :one-user #config/env "COOK_ONE_USER_AUTH"}
+ :authorization-config {;; These users have admin privileges when using configfile-admins-auth;
+                        ;; e.g., they can view and modify other users' jobs.
+                        ;; Sets "admin" and the user defined in "COOK_ONE_USER_AUTH" to be admins for local development.
+                        :admins #{"admin" #config/env "COOK_ONE_USER_AUTH"}
+                        ;; What function should be used to perform user authorization?
+                        ;; See the docstring in cook.rest.authorization for details.
+                        :authorization-fn cook.rest.authorization/configfile-admins-auth-open-gets
+                        ;; users that are allowed to do things on behalf of others
+                        :impersonators #{"poser" "other-impersonator"}}
+ :container-defaults {:volumes [{:host-path "/tmp/cook-integration-mount"
+                                 :container-path "/mnt/cook-integration"
+                                 :mode "RW"}]}
+ :mesos {:leader-path "/cook-scheduler"
+         ; because the minikube users and the local users may have different IDs, tests that require file permissions
+         ; (like test_default_container_volumes) will fail without this set.
+         :run-as-user "root"}
+ :compute-clusters [{:factory-fn cook.kubernetes.compute-cluster/factory-fn
+                     :config {:name "gke-1"
+                              ;; Location of the kubernetes config file. Hardcoded to the location specified by bin/make-gke-test-cluster
+                              :config-file "../scheduler/.cook_kubeconfig_1"
+                              :compute-cluster-launch-rate-limits {:expire-minutes 1200
+                                                                   :enforce? true
+                                                                   :bucket-size 10000
+                                                                   :tokens-replenished-per-minute 5000}
+                              :synthetic-pods {:image "gcr.io/google-containers/alpine-with-bash:1.0"
+                                               :max-pods-outstanding 128
+                                               :max-total-pods 30000
+                                               :max-total-nodes 3000
+                                               :user #config/env "USER"
+                                               :command "exit 0"
+                                               :pools #{"k8s-alpha" "k8s-gamma" "k8s-quota"}}
+                              :node-blocklist-labels ["blocklist-nodes-with-this-label-key"]
+                              :use-google-service-account? false
+                              ;; Used to work around auth problems after upgrading k8s client library to 7.0.0
+                              :verifying-ssl false}}
+                    {:factory-fn cook.kubernetes.compute-cluster/factory-fn
+                     :config {:name "gke-2"
+                              ;; Location of the kubernetes config file. Hardcoded to the location specified by bin/make-gke-test-cluster
+                              :config-file "../scheduler/.cook_kubeconfig_2"
+                              :compute-cluster-launch-rate-limits {:expire-minutes 1200
+                                                                   :enforce? true
+                                                                   :bucket-size 10000
+                                                                   :tokens-replenished-per-minute 5000}
+                              :synthetic-pods {:image "gcr.io/google-containers/alpine-with-bash:1.0"
+                                               :max-pods-outstanding 128
+                                               :max-total-pods 20000
+                                               :max-total-nodes 2000
+                                               :user #config/env "USER"
+                                               :command "exit 0"
+                                               :pools #{"k8s-alpha"}}
+                              :node-blocklist-labels ["blocklist-nodes-with-this-label-key-1" "blocklist-nodes-with-this-label-key-2"]
+                              :use-google-service-account? false
+                              ;; Used to work around auth problems after upgrading k8s client library to 7.0.0
+                              :verifying-ssl false}}
+                    {:factory-fn cook.mesos.mesos-compute-cluster/factory-fn
+                     :config {:failover-timeout-ms nil ; When we close the instance of Cook, all its tasks are killed by Mesos
+                              :master #config/env "MESOS_MASTER"
+                              :framework-id #config/env "COOK_FRAMEWORK_ID"
+                              :compute-cluster-name "local-mesos"
+                              :compute-cluster-launch-rate-limits {:expire-minutes 1200
+                                                                   :enforce? true
+                                                                   :bucket-size 10000
+                                                                   :tokens-replenished-per-minute 5000}}}]
+ :cors-origins ["https?://cors.example.com"]
+ :database {:datomic-uri #config/env "COOK_DATOMIC_URI"}
+ :plugins {:job-submission-validator {:batch-timeout-seconds 40
+                                      :factory-fns ["cook.plugins.demo-plugin/submission-factory"
+                                                    "cook.plugins.demo-plugin/submission-factory2"]}
+           :job-launch-filter {:age-out-last-seen-deadline-minutes 10
+                               :age-out-first-seen-deadline-minutes 10000
+                               :age-out-seen-count 10
+                               :factory-fn "cook.plugins.demo-plugin/launch-factory"}}
+ :hostname #config/env "COOK_HOSTNAME"
+ :kubernetes {:disallowed-container-paths #{"/mnt/bad"}
+              :disallowed-var-names #{"BADVAR"}}
+ :log {:file #config/env "COOK_LOG_FILE"
+       :levels {"datomic.db" :warn
+                "datomic.kv-cluster" :warn
+                "datomic.peer" :warn
+                "cook.scheduler.fenzo-utils" :debug
+                "cook.scheduler.rebalancer" :debug
+                "cook.scheduler.scheduler" :debug
+                "cook.kubernetes.compute-cluster" :debug
+                :default :info}}
+ :metrics {:jmx true
+           :user-metrics-interval-seconds 60}
+ :nrepl {:enabled? true
+         :port #config/env-int "COOK_NREPL_PORT"}
+ :pools {:default "mesos-gamma"
+         :job-resource-adjustment {:adjust-job-resources-fn cook.kubernetes.api/adjust-job-resources
+                                   :pool-regex "^k8s-.+"}
+         :default-containers
+         [{:pool-regex "k8s-(alpha|gamma)" :container {:type "docker"
+                                                      :docker {:image "python:3.6",
+                                                               :network "HOST"
+                                                               :force-pull-image false
+                                                               :parameters []}}}]
+         :quotas [{:pool-regex "k8s-quota"
+                   :quota {:count 2 :cpus 10000.0 :mem 20000.0}}
+                  {:pool-regex "k8s-.*"
+                   :quota {:count 10000 :cpus 10000.0 :mem 20000.0}}
+                  {:pool-regex ".*"
+                   :quota {:count 10000 :cpus 10000.0 :mem 20000.0}}]}
+ :port #config/env-int "COOK_PORT"
+ :ssl {:port #config/env-int "COOK_SSL_PORT"
+       :keystore-path #config/env "COOK_KEYSTORE_PATH"
+       :keystore-type "pkcs12"
+       :keystore-pass "cookstore"}
+ :rate-limit {:expire-minutes 1200 ; Expire unused rate limit entries after 20 hours.
+              ; Keep these job-launch and job-submission values as they are for integration tests. Making them smaller can cause
+              ; spurious failures, and making them larger will cause test_rate_limit_launching_jobs to skip itself.
+              :job-launch {:bucket-size 10000
+                           :enforce? true
+                           :tokens-replenished-per-minute 5000}
+              :job-submission {:bucket-size 1000
+                               :enforce? true
+                               :tokens-replenished-per-minute 600}
+              :user-limit-per-m 1000000}
+ :rebalancer {:dru-scale 1
+              :interval-seconds 30
+              :max-preemption 500.0
+              :min-dru-diff 1.0
+              :safe-dru-threshold 1.0}
+ :sandbox-syncer {:sync-interval-ms 1000}
+ :scheduler {:offer-incubate-ms 15000
+             :task-constraints {:command-length-limit 5000
+                                :cpus 10
+                                :memory-gb 48
+                                :retry-limit 15
+                                :timeout-hours 1
+                                :timeout-interval-minutes 1
+                                :docker-parameters-allowed #{"device" "env" "user" "workdir"}}}
+ :unhandled-exceptions {:log-level :error}
+ :zookeeper {:local? #config/env-bool "COOK_ZOOKEEPER_LOCAL"
+             :connection #config/env "COOK_ZOOKEEPER"}}

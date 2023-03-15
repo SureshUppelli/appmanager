@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+if [ -z "$GKE_CLUSTER_OWNER" ]
+then
+  echo "Please set \$GKE_CLUSTER_OWNER"
+  exit 1
+fi
+
+if [ -z "$GCP_PROJECT_NAME" ]
+then
+  echo "Please set \$GCP_PROJECT_NAME"
+  exit 1
+fi
+
+if [ -z "$PGPASSWORD" ]
+then
+  echo "Please set \$PGPASSWORD"
+  exit 1
+fi
+
+scheduler=/vagrant/scheduler
+home_dir=/home/vagrant
+bashrc=$home_dir/.bashrc
+bin=$home_dir/bin
+echo 'export PATH='$bin':$PATH' | tee -a $bashrc
+
+apt-get -y update
+add-apt-repository ppa:openjdk-r/ppa
+apt-get -y update
+apt-get --no-install-recommends -y install jq maven openjdk-8-jdk python3-pip tree unzip
+apt-get clean
+rm -Rf /var/lib/apt/lists/*
+
+# Java setup
+export JAVA_CMD=/usr/lib/jvm/java-11-openjdk-amd64/bin/java
+echo 'export JAVA_CMD='$JAVA_CMD | tee -a $bashrc
+
+# Lein setup (https://leiningen.org/#install)
+mkdir $bin
+export PATH="$PATH":$bin
+curl -o $bin/lein https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein
+chmod a+x $bin/lein
+lein
+
+# Datomic setup
+echo 'export COOK_DATOMIC_URI=datomic:free://127.0.0.1:4334/jobs' | tee -a $bashrc
+
+# gcloud setup (https://cloud.google.com/sdk/docs/quickstart-linux)
+curl -o $bin/gcloud.tar.gz https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-292.0.0-linux-x86_64.tar.gz
+cd $bin || exit 1
+tar zxvf gcloud.tar.gz google-cloud-sdk
+./google-cloud-sdk/install.sh
+export PATH=$bin/google-cloud-sdk/bin:$PATH
+echo 'export PATH='$bin'/google-cloud-sdk/bin:$PATH' | tee -a $bashrc
+echo 'export GKE_CLUSTER_OWNER='"$GKE_CLUSTER_OWNER" | tee -a $bashrc
+echo 'export GCP_PROJECT_NAME='"$GCP_PROJECT_NAME" | tee -a $bashrc
+echo 'gcloud config set project "$GCP_PROJECT_NAME"' | tee -a $bashrc
+gcloud components install kubectl
+
+# Start in the scheduler dir
+echo 'cd '"$scheduler" | tee -a $bashrc
+
+# Install postgres
+echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" | tee /etc/apt/sources.list.d/openjdk-r-ubuntu-ppa-bionic.list
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+apt-get -y update
+apt install -y postgresql-13
+apt-get install -y libpostgresql-jdbc-java
+
+postgres_envs=$home_dir/.postgres_envs
+echo 'export PGPASSWORD="'"$PGPASSWORD"'"' | tee -a $postgres_envs
+echo 'export COOK_DB_TEST_PG_USER="cook_scheduler"' | tee -a $postgres_envs
+echo 'export COOK_DB_TEST_PG_DB="cook_local"' | tee -a $postgres_envs
+echo 'export COOK_DB_TEST_PG_SCHEMA="cook_local"' | tee -a $postgres_envs
+echo 'export COOK_DB_TEST_PG_DATABASE="cook_local"' | tee -a $postgres_envs
+echo 'export COOK_DB_TEST_PG_SERVER="cook-postgres"' | tee -a $postgres_envs
+echo 'export COOK_SCHEMA=cook_local' | tee -a $postgres_envs
+echo '. '$postgres_envs | tee -a $bashrc
+
+echo "127.0.0.1 cook-postgres" | tee -a /etc/hosts
+
+# Make postgres reachable from outside Vagrant. e.g. for unit tests running in Intellij
+sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/13/main/postgresql.conf
+echo "host all all $(route -n | grep 'UG[ \t]' | awk '{print $2}')/32 md5" | sudo tee -a /etc/postgresql/13/main/pg_hba.conf
+service postgresql start
+
+# Install liquibase
+wget --quiet -O - https://github.com/liquibase/liquibase/releases/download/v4.7.1/liquibase-4.7.1.tar.gz > /tmp/liquibase-4.7.1.tar.gz
+mkdir /usr/share/liquibase
+tar -xf /tmp/liquibase-4.7.1.tar.gz -C /usr/share/liquibase
+ln -s /usr/share/liquibase/liquibase /usr/bin/liquibase
+
+# Setup postgres DB
+. $postgres_envs
+"$scheduler"/postgresql/bin/vagrant-setup-database.sh

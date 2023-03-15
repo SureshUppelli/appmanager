@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+# Usage: ./bin/make-gke-test-cluster <project> <zone> <clustername>
+#   Configure a kubernetes cluster for running pool-based integration tests and running pools in general.
+#    NOTE: This script labels any clusters it creates and will DELETE old clusters it created.
+#   <project> is a gcloud project.
+#   <zone> can be a zone. E.g., us-central1-a
+#   <clustername> is the name of a cluster. E.g., 'test-cluster-1'
+
+# Prerequesites:
+# - Install gcloud (https://cloud.google.com/sdk/docs/quickstarts)
+# - Log in: gcloud auth login
+# - Install kubectl: gcloud components install kubectl
+
+set -e
+
+if [ $# -eq 0 ]
+then
+    echo "You must provide the GCP project to use!"
+    exit 1
+fi
+
+PROJECT=$1
+ZONE=${2:-us-central1-a}
+CLUSTERNAME=${3:-$USER-test-cluster-$(date '+%Y%m%d-%H%M%S')}
+
+gcloud="gcloud --project $PROJECT"
+
+bin/help-delete-temporary-clusters "$PROJECT" "$ZONE"
+bin/help-make-cluster "$PROJECT" "$ZONE" "$CLUSTERNAME" .cook_kubeconfig_1
+
+echo "---- Showing all of the clusters we generated"
+$gcloud container clusters list
