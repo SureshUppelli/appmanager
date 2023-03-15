@@ -52,7 +52,7 @@ COPY config* /opt/cook/
 
 # Ugly hack. Our .cook_kubeconfig lookup assumes it can be found in ../scheduler/ so make a symlink
 RUN ln -s /opt/cook /opt/scheduler
-COPY .cook_kubeconfig_* /opt/cook/
+#COPY .cook_kubeconfig_* /opt/cook/
 
 # Run cook
 EXPOSE \
