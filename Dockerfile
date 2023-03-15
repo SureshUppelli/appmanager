@@ -39,6 +39,7 @@ RUN lein deps
 # Datomic setup
 COPY datomic /opt/cook/datomic
 RUN unzip -uo /opt/cook/datomic/datomic-free-0.9.5561.56.zip
+COPY myroot.crt /opt/
 
 # Copy the whole scheduler into the container
 COPY docker /opt/cook/docker
