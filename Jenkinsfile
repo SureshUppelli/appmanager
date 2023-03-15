@@ -1,4 +1,7 @@
 pipeline {
+	agent {
+		label 'nodejs'
+	}
     parameters {
         string(name: 'image', defaultValue: '', description: 'Docker image to use')
         string(name: 'root_cert', defaultValue: '', description: 'Root certificate to inject')
