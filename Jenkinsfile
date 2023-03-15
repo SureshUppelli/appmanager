@@ -13,6 +13,8 @@ pipeline {
 				sh label: '', script: 'cat myroot.crt'
 				//sh label: '', script: 'docker build -t ${params.image} .'
 				sh "docker build -t ${params.image} ."
+				sh "docker run -itd --name vvp-appmanager ${params.image}"
+				sh "docker exec -it vvp-appmanager sh 'ls'"
 				
 			}
 		}
