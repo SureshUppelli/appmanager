@@ -11,7 +11,7 @@ pipeline {
 			steps{
 				writeFile(file: "myroot.crt", text: params.root_cert)
 				sh label: '', script: 'cat myroot.crt'
-				sh label: '', script: 'docker build -t test-app .'
+				sh label: '', script: 'docker build -t params.image .'
 				
 			}
 		}
