@@ -3,7 +3,7 @@ pipeline {
 		label 'nodejs'
 	}
     parameters {
-        string(name: 'image', defaultValue: '', description: 'Docker image to use')
+        string(name: 'image', defaultValue: 'v2.0.9-occ/vvp-appmanager:2.0.9', description: 'Docker image to use')
         string(name: 'root_cert', defaultValue: '', description: 'Root certificate to inject')
     }
 	stages{
