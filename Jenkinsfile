@@ -17,12 +17,11 @@ pipeline {
 				
 			}
 		}
-		stage("Copy Image"){
+		stage("Copy Image")
 			steps{
-				withDockerRegistry([credentialsId: 'PUBLISH_TO_ARTIFACTORY', url: 'https://artifactory.com"]) {
-						sh "docker push ${params.image}"
-					}
+				withCredentials([usernameColonPassword(credentialsId: 'dockerhub_credentials', variable: 'dockerhub_credentials')]) {
+					sh "docker push ${params.image}"
+				}
 			}
-		}
 	}
 }
