@@ -17,11 +17,12 @@ pipeline {
 				
 			}
 		}
-		stage("Copy Image")
+		stage("Copy Image"){
 			steps{
 				withCredentials([usernameColonPassword(credentialsId: 'dockerhub_credentials', variable: 'dockerhub_credentials')]) {
 					sh "docker push ${params.image}"
 				}
 			}
+		}
 	}
 }
